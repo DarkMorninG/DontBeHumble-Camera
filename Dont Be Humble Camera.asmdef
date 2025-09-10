@@ -1,0 +1,21 @@
+{
+    "name": "DontBeHumble.Camera",
+    "rootNamespace": "DBH.Camera",
+    "references": [
+        "GUID:dcc8bc53dd4945e1b7af1af5066d71cf",
+        "GUID:c152e988d447c8a44b8541cd59723bf8",
+        "GUID:4307f53044263cf4b835bd812fc161a4"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Sirenix.OdinInspector.Attributes.dll",
+        "DOTween.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
