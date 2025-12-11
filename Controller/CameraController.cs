@@ -213,6 +213,10 @@ namespace DBH.Camera.Controller {
         }
 
         public IAwaitRuntime ActivateBlur() {
+            if (runningBlur.IsRunning()) {
+                runningBlur.Stop();
+            }
+            
             var volumeExtension = CurrentActiveCamera.GetComponent<CinemachineVolumeSettings>();
             var volumeExtensionProfile = volumeExtension.Profile;
             var depthOfField = volumeExtensionProfile.components.Find(component => component is DepthOfField) as DepthOfField;
