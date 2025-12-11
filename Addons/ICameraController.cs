@@ -1,4 +1,5 @@
 using System;
+using BetterCoroutine.AwaitRuntime;
 using DBH.Camera.Controller;
 using Unity.Cinemachine;
 using UnityEngine;
@@ -40,5 +41,7 @@ namespace DBH.Camera.Addons {
 
         void FocusOnTemp(GameObject targetToChangeTo);
         void ReleaseFocus();
+        IAwaitRuntime ActivateBlur();
+        IAwaitRuntime DeactivateBlur();
     }
 }
