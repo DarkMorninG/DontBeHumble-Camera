@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using BetterCoroutine;
+using BetterCoroutine.AwaitRuntime;
 using DBH.Attributes;
 using DBH.Base;
 using DBH.Camera.Addons;
@@ -10,6 +12,7 @@ using DG.Tweening;
 using Sirenix.OdinInspector;
 using Unity.Cinemachine;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 using Vault;
 using Vault.BetterCoroutine;
 
@@ -47,6 +50,8 @@ namespace DBH.Camera.Controller {
 
         TransitionScreen _transitionScreen;
         bool _transitionScreenEnabled;
+
+        private IAwaitRuntime runningBlur;
 
         private List<GameObject> _focusTargets = new();
 
@@ -162,7 +167,7 @@ namespace DBH.Camera.Controller {
 
             _currentActiveVirtualCamera = cinemachineVirtualCamera;
 
-            AsyncRuntime.WaitForEndOfFrame(() => {
+            IAwaitRuntime.WaitForEndOfFrame(() => {
                 if (_currentActiveBrain.ActiveBlend == null) {
                     onFinishedBlending?.Invoke();
                     OnCameraChange?.Invoke(new CameraChangeDto(CurrentActiveCameraObject,
@@ -170,7 +175,7 @@ namespace DBH.Camera.Controller {
                     UpdateAddons(_currentActiveBrain.OutputCamera, _currentActiveVirtualCamera);
                     UpdateScreenSizeData();
                 } else {
-                    AsyncRuntime.WaitUntil(() => _currentActiveBrain.ActiveBlend != null,
+                    IAwaitRuntime.WaitUntil(() => _currentActiveBrain.ActiveBlend != null,
                         () => {
                             AsyncRuntime.WaitUntil(() => !_currentActiveBrain.IsBlending,
                                 () => {
@@ -205,6 +210,28 @@ namespace DBH.Camera.Controller {
 
         public void ReturnToDefaultCamera() {
             ChangeMainCameraTo(_defaultCamera);
+        }
+
+        public IAwaitRuntime ActivateBlur() {
+            var volumeExtension = CurrentActiveCamera.GetComponent<CinemachineVolumeSettings>();
+            var volumeExtensionProfile = volumeExtension.Profile;
+            var depthOfField = volumeExtensionProfile.components.Find(component => component is DepthOfField) as DepthOfField;
+            var activateBlur = IAwaitRuntime.EverySecondsDo(() => depthOfField.focalLength.value += 10, () => .01f, () => depthOfField.focalLength.value >= 190);
+            runningBlur = activateBlur;
+            return activateBlur;
+        }
+
+        public IAwaitRuntime DeactivateBlur() {
+            if (runningBlur.IsRunning()) {
+                runningBlur.Stop();
+            }
+            
+            var volumeExtension = CurrentActiveCamera.GetComponent<CinemachineVolumeSettings>();
+            var volumeExtensionProfile = volumeExtension.Profile;
+            var depthOfField = volumeExtensionProfile.components.Find(component => component is DepthOfField) as DepthOfField;
+            var deactivateBlur = IAwaitRuntime.EverySecondsDo(() => depthOfField.focalLength.value -= 10, () => .01f, () => depthOfField.focalLength.value <= 1);
+            runningBlur = deactivateBlur;
+            return deactivateBlur;
         }
 
         [AfterSceneUnLoad]
