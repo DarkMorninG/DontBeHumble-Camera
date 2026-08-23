@@ -202,7 +202,7 @@ namespace DBH.Camera.Controller {
         public void FocusOnTemp(GameObject targetToChangeTo) {
             var targetTracker = new TargetTracker(currentActiveVirtualCamera.Target.LookAtTarget, currentActiveVirtualCamera.LookAt.gameObject);
             focusTargets.Add(targetTracker);
-            SmoothFocusChange(targetTracker);
+            SmoothFocusChange(new TargetTracker(targetToChangeTo.transform, targetToChangeTo));
         }
 
         public void ReleaseFocus() {
