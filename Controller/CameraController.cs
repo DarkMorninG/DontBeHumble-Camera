@@ -26,7 +26,7 @@ namespace DBH.Camera.Controller {
         private readonly List<CinemachineCamera> _virtualCameras = new();
         private readonly List<CinemachineBrain> _cameraBrains = new();
         private CinemachineCamera _defaultCamera;
-        private CinemachineCamera _currentActiveVirtualCamera;
+        private CinemachineCamera currentActiveVirtualCamera;
         private CinemachineBrain _defaultCameraBrain;
         private CinemachineBrain _currentActiveBrain;
 
@@ -34,9 +34,9 @@ namespace DBH.Camera.Controller {
         private List<ICameraControllerAddOn> _cameraControllerAddOns;
 
         public GameObject CurrentActiveCameraObject =>
-            _currentActiveVirtualCamera != null ? _currentActiveBrain.gameObject : null;
+            currentActiveVirtualCamera != null ? _currentActiveBrain.gameObject : null;
 
-        public CinemachineCamera CurrentActiveCamera => _currentActiveVirtualCamera;
+        public CinemachineCamera CurrentActiveCamera => currentActiveVirtualCamera;
 
         public CinemachineBrain CurrentActiveBrain => _currentActiveBrain;
 
@@ -53,7 +53,7 @@ namespace DBH.Camera.Controller {
 
         private IAwaitRuntime runningBlur;
 
-        private List<GameObject> _focusTargets = new();
+        private readonly List<TargetTracker> focusTargets = new();
 
         public void SwitchToVirtualCamera(CinemachineCamera virtualCamera,
             GameObject toFocusOn,
@@ -156,7 +156,7 @@ namespace DBH.Camera.Controller {
             Action onFinishedBlending = null) {
             if (_blockChange) return;
             if (cinemachineVirtualCamera == null) return;
-            if (cinemachineVirtualCamera == _currentActiveVirtualCamera) return;
+            if (cinemachineVirtualCamera == currentActiveVirtualCamera) return;
             Debug.Log("Changed camera to: " + cinemachineVirtualCamera.gameObject.name);
 
             //since change in virtual camera can be a change in active camera brain
@@ -165,14 +165,14 @@ namespace DBH.Camera.Controller {
             _virtualCameras.ForEach(virtualCamera => virtualCamera.Priority = 0);
             cinemachineVirtualCamera.Priority = 10;
 
-            _currentActiveVirtualCamera = cinemachineVirtualCamera;
+            currentActiveVirtualCamera = cinemachineVirtualCamera;
 
             IAwaitRuntime.WaitForEndOfFrame(() => {
                 if (_currentActiveBrain.ActiveBlend == null) {
                     onFinishedBlending?.Invoke();
                     OnCameraChange?.Invoke(new CameraChangeDto(CurrentActiveCameraObject,
                         _currentActiveBrain.OutputCamera));
-                    UpdateAddons(_currentActiveBrain.OutputCamera, _currentActiveVirtualCamera);
+                    UpdateAddons(_currentActiveBrain.OutputCamera, currentActiveVirtualCamera);
                     UpdateScreenSizeData();
                 } else {
                     IAwaitRuntime.WaitUntil(() => _currentActiveBrain.ActiveBlend != null,
@@ -182,7 +182,7 @@ namespace DBH.Camera.Controller {
                                     onFinishedBlending?.Invoke();
                                     OnCameraChange?.Invoke(new CameraChangeDto(CurrentActiveCameraObject,
                                         _currentActiveBrain.OutputCamera));
-                                    UpdateAddons(_currentActiveBrain.OutputCamera, _currentActiveVirtualCamera);
+                                    UpdateAddons(_currentActiveBrain.OutputCamera, currentActiveVirtualCamera);
                                     UpdateScreenSizeData();
                                 });
                         });
@@ -190,21 +190,25 @@ namespace DBH.Camera.Controller {
             });
         }
 
-
         public void FocusOn(GameObject targetToChangeTo) {
+            FocusOn(new TargetTracker(targetToChangeTo.transform, targetToChangeTo));
+        }
+
+        private void FocusOn(TargetTracker targetToChangeTo) {
             SmoothFocusChange(targetToChangeTo);
             BlockCameraChange();
         }
 
         public void FocusOnTemp(GameObject targetToChangeTo) {
-            _focusTargets.Add(_currentActiveVirtualCamera.LookAt.gameObject);
-            _currentActiveVirtualCamera.LookAt = targetToChangeTo.transform;
+            var targetTracker = new TargetTracker(currentActiveVirtualCamera.Target.LookAtTarget, currentActiveVirtualCamera.LookAt.gameObject);
+            focusTargets.Add(targetTracker);
+            SmoothFocusChange(targetTracker);
         }
 
         public void ReleaseFocus() {
-            FocusOn(_focusTargets.LastItem());
-            if (_focusTargets.Count > 1) {
-                _focusTargets.RemoveLastItem();
+            FocusOn(focusTargets.LastItem());
+            if (focusTargets.Count > 1) {
+                focusTargets.RemoveLastItem();
             }
         }
 
@@ -216,11 +220,13 @@ namespace DBH.Camera.Controller {
             if (runningBlur.IsRunning()) {
                 runningBlur.Stop();
             }
-            
+
             var volumeExtension = CurrentActiveCamera.GetComponent<CinemachineVolumeSettings>();
             var volumeExtensionProfile = volumeExtension.Profile;
             var depthOfField = volumeExtensionProfile.components.Find(component => component is DepthOfField) as DepthOfField;
-            var activateBlur = IAwaitRuntime.EverySecondsDo(() => depthOfField.focalLength.value += 10, () => .01f, () => depthOfField.focalLength.value >= 190);
+            var activateBlur = IAwaitRuntime.EverySecondsDo(() => depthOfField.focalLength.value += 10,
+                () => .01f,
+                () => depthOfField.focalLength.value >= 190);
             runningBlur = activateBlur;
             return activateBlur;
         }
@@ -229,11 +235,13 @@ namespace DBH.Camera.Controller {
             if (runningBlur.IsRunning()) {
                 runningBlur.Stop();
             }
-            
+
             var volumeExtension = CurrentActiveCamera.GetComponent<CinemachineVolumeSettings>();
             var volumeExtensionProfile = volumeExtension.Profile;
             var depthOfField = volumeExtensionProfile.components.Find(component => component is DepthOfField) as DepthOfField;
-            var deactivateBlur = IAwaitRuntime.EverySecondsDo(() => depthOfField.focalLength.value -= 10, () => .01f, () => depthOfField.focalLength.value <= 1);
+            var deactivateBlur = IAwaitRuntime.EverySecondsDo(() => depthOfField.focalLength.value -= 10,
+                () => .01f,
+                () => depthOfField.focalLength.value <= 1);
             runningBlur = deactivateBlur;
             return deactivateBlur;
         }
@@ -269,14 +277,14 @@ namespace DBH.Camera.Controller {
                 _loadingScreen.FocusOnLoadingScreen(_currentActiveBrain.OutputCamera);
             }
 
-            if (activeCameraInScene != null && _currentActiveVirtualCamera == null) {
+            if (activeCameraInScene != null && currentActiveVirtualCamera == null) {
                 ChangeMainCameraTo(activeCameraInScene);
             } else {
                 ChangeMainCameraTo(_defaultCamera);
             }
 
-            if (_currentActiveVirtualCamera == null) Debug.LogError("Missing Active Camera in Scene");
-            
+            if (currentActiveVirtualCamera == null) Debug.LogError("Missing Active Camera in Scene");
+
             _initFinished = true;
         }
 
@@ -288,20 +296,21 @@ namespace DBH.Camera.Controller {
                 aspect * lens.OrthographicSize * 2,
                 lens.OrthographicSize * 2,
                 lens.FarClipPlane - lens.NearClipPlane);
-            
         }
 
-        private void SmoothFocusChange(GameObject targetToChangeTo) {
-            var currentTarget = _currentActiveVirtualCamera.LookAt;
+        private void SmoothFocusChange(TargetTracker targetToChangeTo) {
+            var currentTarget = currentActiveVirtualCamera.LookAt;
             var targetSmoothObject = new GameObject("Changing Camera Focus") {
                 transform = {
                     position = currentTarget.position
                 }
             };
-            _currentActiveVirtualCamera.LookAt = targetSmoothObject.transform;
-            targetSmoothObject.transform.DOMove(targetToChangeTo.transform.position, .5f)
+            currentActiveVirtualCamera.LookAt = targetSmoothObject.transform;
+            currentActiveVirtualCamera.Target.TrackingTarget = targetSmoothObject.transform;
+            targetSmoothObject.transform.DOMove(targetToChangeTo.LookAtTarget.transform.position, .5f)
                 .onComplete = () => {
-                _currentActiveVirtualCamera.LookAt = targetToChangeTo.transform;
+                currentActiveVirtualCamera.LookAt = targetToChangeTo.LookAtTarget.transform;
+                currentActiveVirtualCamera.Target.TrackingTarget = targetToChangeTo.LookAtTarget.transform;
                 Destroy(targetSmoothObject);
             };
         }
@@ -317,7 +326,7 @@ namespace DBH.Camera.Controller {
         // [AfterSceneUnLoad]
         private void UpdateOnSceneUnload() {
             Init();
-            UpdateAddons(_currentActiveBrain.OutputCamera, _currentActiveVirtualCamera);
+            UpdateAddons(_currentActiveBrain.OutputCamera, currentActiveVirtualCamera);
         }
 
         private void UpdateFoundCameras() {
