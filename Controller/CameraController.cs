@@ -206,10 +206,10 @@ namespace DBH.Camera.Controller {
         }
 
         public void ReleaseFocus() {
-            FocusOn(focusTargets.LastItem());
             if (focusTargets.Count > 1) {
                 focusTargets.RemoveLastItem();
             }
+            FocusOn(focusTargets.LastItem());
         }
 
         public void ReturnToDefaultCamera() {
